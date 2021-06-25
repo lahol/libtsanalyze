@@ -7,22 +7,32 @@ RM ?= rm
 
 PREFIX := /usr
 
-all: ts-analyze
+all: ts-analyze libtsanalyze.so.1.0
 
-ta_SRC := $(wildcard *.c)
+ta_SRC := $(filter-out main.c, $(wildcard *.c))
 ta_OBJ := $(ta_SRC:.c=.o)
 ta_HEADERS := $(wildcard *.h)
 
-ts-analyze: $(ta_OBJ)
-	$(LD) -o $@ $^ $(LIBS)
+libtsanalyze.so.1.0: $(ta_OBJ)
+	$(CC) -shared -Wl,-soname,libtsanalyze.so.1 -o $@ $^ $(LIBS)
+	ln -sf libtsanalyze.so.1.0 libtsanalyze.so.1
+	ln -sf libtsanalyze.so.1 libtsanalyze.so
+
+
+ts-analyze: main.c libtsanalyze.so.1.0
+	$(CC) $(CFLAGS) -L. -o ts-analyze main.c -ltsanalyze $(LIBS)
 
 %.o: %.c $(ta_HEADERS)
-	$(CC) -I. $(CFLAGS) -c -o $@ $<
+	$(CC) -I. $(CFLAGS) -fPIC -c -o $@ $<
 
 install: ts-analyze
+	install libtsanalyze.so.1.0 $(PREFIX)/lib/
+	ln -sf $(PREFIX)/lib/libtsanalyze.so.1.0 $(PREFIX)/lib/libtsanalyze.so.1
+	ln -sf $(PREFIX)/lib/libtsanalyze.so.1 $(PREFIX)/lib/libtsanalyze.so
+	cp ts-analyzer.h pidinfo.h $(PREFIX)/include
 	install ts-analyze $(PREFIX)/bin
 
 clean:
-	$(RM) -f ts-analyze $(ta_OBJ) $(pr_OBJ)
+	$(RM) libtsanalyze.so* ts-analyze $(ta_OBJ) $(pr_OBJ)
 
-.PHONY: all clean
+.PHONY: all clean install

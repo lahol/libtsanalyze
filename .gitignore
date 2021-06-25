@@ -1,3 +1,4 @@
 *.o
 ts-analyze
 core
+*.so*

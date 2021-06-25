@@ -3,8 +3,20 @@
 
 #include <memory.h>
 #include <bitstream/mpeg/ts.h>
+#include <dvbpsi/dvbpsi.h>
+#include <dvbpsi/descriptor.h>
+#include <dvbpsi/psi.h>
+#include <dvbpsi/pat.h>
+#include <dvbpsi/pmt.h>
+#include <bitstream/mpeg/pes.h>
 
 #include <stdio.h>
+
+typedef struct _DvbPsiProgInfo {
+    uint16_t prog_number;
+    uint16_t pid;
+    dvbpsi_t *handle;
+} DvbPsiProgInfo;
 
 struct _TsAnalyzer {
     TsAnalyzerClass klass;
@@ -28,9 +40,17 @@ struct _TsAnalyzer {
     size_t packet_length;
 
     uint32_t error_occured : 1;
+
+    PidInfoManager *pmgr;
+
+    /* dvbpsi handlers */
+    dvbpsi_t *pat_handle;
+    /* FIXME make this dynamic. */
+    DvbPsiProgInfo pmt_handles[64];
+    size_t pmt_handle_count;
 };
 
-bool ts_analyzer_handle_packet_fallback(const uint8_t *packet, size_t offset, void *userdata)
+bool ts_analyzer_handle_packet_fallback(PidInfo *pidinfo, const uint8_t *packet, size_t offset, void *userdata)
 {
     return true;
 }
@@ -38,6 +58,99 @@ bool ts_analyzer_handle_packet_fallback(const uint8_t *packet, size_t offset, vo
 TsAnalyzerClass ts_analyzer_class_fallback = {
     .handle_packet = ts_analyzer_handle_packet_fallback,
 };
+
+static PidInfo *_ts_analyzer_add_pid(TsAnalyzer *analyzer, uint16_t pid, PidType type)
+{
+    PidInfo *info = pid_info_manager_add_pid(analyzer->pmgr, pid);
+    fprintf(stderr, "add info: %u (%u) -> %p\n", pid, type, info);
+    if (info == NULL) /* This should never happen */
+        return NULL;
+    if (type != PID_TYPE_OTHER)
+        info->type = type;
+
+    return info;
+}
+
+static DvbPsiProgInfo *ts_analyzer_dvbpsi_add_program(TsAnalyzer *analyzer, uint16_t prog_number, uint16_t pid);
+
+static void ts_analyzer_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_t level, const char *msg)
+{
+}
+
+static void ts_analyzer_dvbpsi_pat_cb(TsAnalyzer *analyzer, dvbpsi_pat_t *pat)
+{
+    fprintf(stderr, "PAT cb\n");
+    dvbpsi_pat_program_t *prog;
+
+    for (prog = pat->p_first_program; prog; prog = prog->p_next) {
+        ts_analyzer_dvbpsi_add_program(analyzer, prog->i_number, prog->i_pid);
+    }
+
+    dvbpsi_pat_delete(pat);
+}
+
+static void ts_analyzer_dvbpsi_pmt_cb(TsAnalyzer *analyzer, dvbpsi_pmt_t *pmt)
+{
+    fprintf(stderr, "PMT handler\n");
+    dvbpsi_pmt_es_t *stream;
+    PidType type = PID_TYPE_OTHER;
+    for (stream = pmt->p_first_es; stream; stream = stream->p_next) {
+        switch (stream->i_type) { /* see page 66 (48) of iso 13818-1 */
+            case 0x01:
+                type = PID_TYPE_VIDEO_11172;
+                break;
+            case 0x02:
+                type = PID_TYPE_VIDEO_13818;
+                break;
+            case 0x03:
+                type = PID_TYPE_AUDIO_11172;
+                break;
+            case 0x04:
+                type = PID_TYPE_AUDIO_13818;
+                break;
+            case 0x06:
+                type = PID_TYPE_TELETEXT;
+                break;
+            case 0x1b:
+                type = PID_TYPE_VIDEO_14496;
+                break;
+            default:
+/*                fprintf(stderr, "Add other type: 0x%02x\n", stream->i_type);*/
+                type = PID_TYPE_OTHER;
+                break;
+        }
+
+        PidInfo *info =_ts_analyzer_add_pid(analyzer, stream->i_pid, type);
+        if (info) {
+            info->stream_type = stream->i_type;
+        }
+    }
+    dvbpsi_pmt_delete(pmt);
+}
+
+static DvbPsiProgInfo *ts_analyzer_dvbpsi_add_program(TsAnalyzer *analyzer, uint16_t prog_number, uint16_t pid)
+{
+    fprintf(stderr, "Add programm %u (%u)\n", prog_number, pid);
+    DvbPsiProgInfo *info = NULL;
+    size_t j;
+    for (j = 0; j < analyzer->pmt_handle_count; ++j) {
+        if (analyzer->pmt_handles[j].prog_number == prog_number) {
+            info = &analyzer->pmt_handles[j];
+            break;
+        }
+    }
+    if (info == NULL) {
+        info = &analyzer->pmt_handles[analyzer->pmt_handle_count++];
+        info->prog_number = prog_number;
+        info->pid = pid;
+        info->handle = dvbpsi_new(ts_analyzer_dvbpsi_message, DVBPSI_MSG_ERROR);
+        dvbpsi_pmt_attach(info->handle, prog_number, (dvbpsi_pmt_callback)ts_analyzer_dvbpsi_pmt_cb, analyzer);
+    }
+
+    _ts_analyzer_add_pid(analyzer, info->pid, PID_TYPE_PMT);
+
+    return info;
+}
 
 static inline void ts_analyzer_advance_buffer(TsAnalyzer *analyzer, size_t len)
 {
@@ -99,10 +212,37 @@ err:
     analyzer->remaining = 0;
 }
 
-static inline void ts_analyzer_process_packet(TsAnalyzer *analyzer)
+static bool ts_analyzer_handle_packet_internal(TsAnalyzer *analyzer)
+{
+    /* analyze pid */
+    uint16_t pid = ts_get_pid(analyzer->packet_data);
+    if (pid == 0) {
+        if (analyzer->pat_handle)
+            dvbpsi_packet_push(analyzer->pat_handle, analyzer->packet_data);
+        
+    }
+    else {
+        /* check for programs, push packet to handle. */
+        size_t j;
+        for (j = 0; j < analyzer->pmt_handle_count; ++j) {
+            if (analyzer->pmt_handles[j].pid == pid) {
+                if (analyzer->pmt_handles[j].handle)
+                    dvbpsi_packet_push(analyzer->pmt_handles[j].handle, analyzer->packet_data);
+                break;
+            }
+        }
+    }
+
+    PidInfo *info = pid_info_manager_add_pid(analyzer->pmgr, pid);
+
+    /* pass to handler */
+    return analyzer->klass.handle_packet(info, analyzer->packet_data, analyzer->packet_offset, analyzer->cb_userdata);
+}
+
+static void ts_analyzer_process_packet(TsAnalyzer *analyzer)
 {
     if (ts_validate(analyzer->packet_data)) {
-        if (!analyzer->klass.handle_packet(analyzer->packet_data, analyzer->packet_offset, analyzer->cb_userdata))
+        if (!ts_analyzer_handle_packet_internal(analyzer))
             analyzer->error_occured = 1;
     }
     else {
@@ -148,12 +288,36 @@ TsAnalyzer *ts_analyzer_new(TsAnalyzerClass *klass, void *userdata)
 
     analyzer->cb_userdata = userdata;
 
+    analyzer->pat_handle = dvbpsi_new(ts_analyzer_dvbpsi_message, DVBPSI_MSG_ERROR);
+    dvbpsi_pat_attach(analyzer->pat_handle, (dvbpsi_pat_callback)ts_analyzer_dvbpsi_pat_cb, analyzer);
+
     return analyzer;
 }
 
 void ts_analyzer_free(TsAnalyzer *analyzer)
 {
+    if (analyzer == NULL)
+        return;
+    if (analyzer->pat_handle) {
+        if (analyzer->pat_handle->p_decoder)
+            dvbpsi_pat_detach(analyzer->pat_handle);
+        dvbpsi_delete(analyzer->pat_handle);
+    }
+    size_t j;
+    for (j = 0; j < analyzer->pmt_handle_count; ++j) {
+        if (analyzer->pmt_handles[j].handle) {
+            if (analyzer->pmt_handles[j].handle->p_decoder)
+                dvbpsi_pmt_detach(analyzer->pmt_handles[j].handle);
+            dvbpsi_delete(analyzer->pmt_handles[j].handle);
+        }
+    }
     util_free(analyzer);
+}
+
+void ts_analyzer_set_pid_info_manager(TsAnalyzer *analyzer, PidInfoManager *pmgr)
+{
+    if (analyzer)
+        analyzer->pmgr = pmgr;
 }
 
 void ts_analyzer_push_buffer(TsAnalyzer *analyzer, const uint8_t *buffer, size_t len)

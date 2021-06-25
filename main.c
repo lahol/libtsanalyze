@@ -8,9 +8,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-bool ts_analyze_handle_packet(const uint8_t *packet, const size_t offset, void *nil)
+bool ts_analyze_handle_packet(PidInfo *pidinfo, const uint8_t *packet, const size_t offset, void *nil)
 {
-    fprintf(stderr, "Offset: %zu\n", offset);
+    fprintf(stderr, "Offset: %zu", offset);
+    if (pidinfo) {
+        fprintf(stderr, ", pid: %u, type: %u, streamtype: 0x%02x", pidinfo->pid, pidinfo->type, pidinfo->stream_type);
+    }
+    fprintf(stderr, "\n");
     return true;
 }
 
@@ -31,6 +35,9 @@ void ts_analyze_file(const char *filename)
         .handle_packet = ts_analyze_handle_packet,
     };
     TsAnalyzer *ts_analyzer = ts_analyzer_new(&tscls, NULL);
+
+    PidInfoManager *pmgr = pid_info_manager_new();
+    ts_analyzer_set_pid_info_manager(ts_analyzer, pmgr);
 
     uint8_t buffer[8*4096];
     size_t bytes_read;
@@ -58,6 +65,7 @@ void ts_analyze_file(const char *filename)
 /*    fputs("                  \r", stderr);*/
 
     ts_analyzer_free(ts_analyzer);
+    pid_info_manager_free(pmgr);
     fclose(f);
 }
 

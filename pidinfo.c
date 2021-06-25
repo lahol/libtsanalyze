@@ -1,10 +1,16 @@
 #include "pidinfo.h"
 #include "utils.h"
 
+#define PID_INFO_CLIENT_MAX 8
+
+typedef struct {
+    void *data;
+    PidInfoPrivateDataFree destroy;
+} PidInfoPrivateData;
+
 typedef struct _PidInfoListEntry {
     PidInfo info;
-    void *private_data;
-    PidInfoPrivateDataFree destroy_data_func;
+    PidInfoPrivateData private_data[PID_INFO_CLIENT_MAX];
 } PidInfoListEntry;
 
 #define PID_INFO_BLOCK 32
@@ -69,9 +75,12 @@ void pid_info_manager_free(PidInfoManager *pmgr)
 {
     if (pmgr) {
         size_t j;
+        size_t k;
         for (j = 0; j < pmgr->pid_count; ++j) {
-            if (pmgr->pidlist[j]->private_data && pmgr->pidlist[j]->destroy_data_func)
-                pmgr->pidlist[j]->destroy_data_func(pmgr->pidlist[j]->private_data);
+            for (k = 0; k < pmgr->max_client_id; ++k) {
+                if (pmgr->pidlist[j]->private_data[k].data && pmgr->pidlist[j]->private_data[k].destroy)
+                    pmgr->pidlist[j]->private_data[k].destroy(pmgr->pidlist[j]->private_data[k].data);
+            }
             util_free(pmgr->pidlist[j]);
         }
         util_free(pmgr->pidlist);
@@ -87,22 +96,32 @@ PidInfo *pid_info_manager_add_pid(PidInfoManager *pmgr, uint16_t pid)
 
 uint16_t pid_info_manager_register_client(PidInfoManager *pmgr)
 {
-    return pmgr != NULL ? ++pmgr->max_client_id : 0;
+    return pmgr != NULL && pmgr->max_client_id < PID_INFO_CLIENT_MAX ? pmgr->max_client_id++ : PID_INFO_CLIENT_MAX;
 }
 
 void pid_info_set_private_data(PidInfo *pinfo, uint16_t client_id, void *data, PidInfoPrivateDataFree destroy_data_func)
 {
-    if (pinfo == NULL)
+    if (pinfo == NULL || client_id >= PID_INFO_CLIENT_MAX)
         return;
-    ((PidInfoListEntry *)pinfo)->private_data = data;
-    ((PidInfoListEntry *)pinfo)->destroy_data_func = destroy_data_func;
+    ((PidInfoListEntry *)pinfo)->private_data[client_id].data = data;
+    ((PidInfoListEntry *)pinfo)->private_data[client_id].destroy = destroy_data_func;
 }
 
 void *pid_info_get_private_data(PidInfo *pinfo, uint16_t client_id)
 {
-    if (pinfo == NULL)
+    if (pinfo == NULL || client_id >= PID_INFO_CLIENT_MAX)
         return NULL;
-    return ((PidInfoListEntry *)pinfo)->private_data;
+    return ((PidInfoListEntry *)pinfo)->private_data[client_id].data;
+}
+
+void pid_info_clear_private_data(PidInfo *pinfo, uint16_t client_id)
+{
+    if (pinfo == NULL || client_id >= PID_INFO_CLIENT_MAX)
+        return;
+    PidInfoPrivateData *pdata = &((PidInfoListEntry *)pinfo)->private_data[client_id];
+    if (pdata->destroy)
+        pdata->destroy(pdata->data);
+    pdata->data = NULL;
 }
 
 void pid_info_manager_set_private_data(PidInfoManager *pmgr, uint16_t pid, uint16_t client_id, void *data, PidInfoPrivateDataFree destroy_data_func)

@@ -37,7 +37,7 @@ struct _TsAnalyzer {
 
     size_t packet_length;
 
-    uint32_t error_occured : 1;
+    uint32_t error_occurred : 1;
 
     PidInfoManager *pmgr;
 
@@ -212,7 +212,6 @@ static bool ts_analyzer_handle_packet_internal(TsAnalyzer *analyzer)
     if (pid == 0) {
         if (analyzer->pat_handle)
             dvbpsi_packet_push(analyzer->pat_handle, analyzer->packet_data);
-        
     }
     else {
         /* check for programs, push packet to handle. */
@@ -236,7 +235,7 @@ static void ts_analyzer_process_packet(TsAnalyzer *analyzer)
 {
     if (ts_validate(analyzer->packet_data)) {
         if (!ts_analyzer_handle_packet_internal(analyzer))
-            analyzer->error_occured = 1;
+            analyzer->error_occurred = 1;
     }
     else {
         analyzer->packet_bytes_read = 0;
@@ -323,7 +322,7 @@ void ts_analyzer_push_buffer(TsAnalyzer *analyzer, const uint8_t *buffer, size_t
     if (analyzer->packet_bytes_read == 0 && !ts_validate(analyzer->buffer))
         ts_analyzer_sync_stream(analyzer);
 
-    while (analyzer->remaining && !analyzer->error_occured) {
+    while (analyzer->remaining && !analyzer->error_occurred) {
         ts_analyzer_read_packet_partial(analyzer);
     }
 }

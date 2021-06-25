@@ -74,6 +74,12 @@ void pid_info_set_private_data(PidInfo *pinfo, uint16_t client_id, void *data, P
  */
 void *pid_info_get_private_data(PidInfo *pinfo, uint16_t client_id);
 
+/** Clear private data and call destroy, if given.
+ *  @param[in] pinfo The pid info to clear the data from.
+ *  @param[in] client_id The client id as returned by register_client().
+ */
+void pid_info_clear_private_data(PidInfo *pinfo, uint16_t client_id);
+
 /** Set private data of the pid info given by pid.
  *  @param[in] pmgr The pid manager.
  *  @param[in] pid The pid to set the info for.

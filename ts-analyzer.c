@@ -10,8 +10,6 @@
 #include <dvbpsi/pmt.h>
 #include <bitstream/mpeg/pes.h>
 
-#include <stdio.h>
-
 typedef struct _DvbPsiProgInfo {
     uint16_t prog_number;
     uint16_t pid;
@@ -62,7 +60,6 @@ TsAnalyzerClass ts_analyzer_class_fallback = {
 static PidInfo *_ts_analyzer_add_pid(TsAnalyzer *analyzer, uint16_t pid, PidType type)
 {
     PidInfo *info = pid_info_manager_add_pid(analyzer->pmgr, pid);
-    fprintf(stderr, "add info: %u (%u) -> %p\n", pid, type, info);
     if (info == NULL) /* This should never happen */
         return NULL;
     if (type != PID_TYPE_OTHER)
@@ -79,7 +76,6 @@ static void ts_analyzer_dvbpsi_message(dvbpsi_t *handle, const dvbpsi_msg_level_
 
 static void ts_analyzer_dvbpsi_pat_cb(TsAnalyzer *analyzer, dvbpsi_pat_t *pat)
 {
-    fprintf(stderr, "PAT cb\n");
     dvbpsi_pat_program_t *prog;
 
     for (prog = pat->p_first_program; prog; prog = prog->p_next) {
@@ -91,7 +87,6 @@ static void ts_analyzer_dvbpsi_pat_cb(TsAnalyzer *analyzer, dvbpsi_pat_t *pat)
 
 static void ts_analyzer_dvbpsi_pmt_cb(TsAnalyzer *analyzer, dvbpsi_pmt_t *pmt)
 {
-    fprintf(stderr, "PMT handler\n");
     dvbpsi_pmt_es_t *stream;
     PidType type = PID_TYPE_OTHER;
     for (stream = pmt->p_first_es; stream; stream = stream->p_next) {
@@ -115,7 +110,6 @@ static void ts_analyzer_dvbpsi_pmt_cb(TsAnalyzer *analyzer, dvbpsi_pmt_t *pmt)
                 type = PID_TYPE_VIDEO_14496;
                 break;
             default:
-/*                fprintf(stderr, "Add other type: 0x%02x\n", stream->i_type);*/
                 type = PID_TYPE_OTHER;
                 break;
         }
@@ -130,7 +124,6 @@ static void ts_analyzer_dvbpsi_pmt_cb(TsAnalyzer *analyzer, dvbpsi_pmt_t *pmt)
 
 static DvbPsiProgInfo *ts_analyzer_dvbpsi_add_program(TsAnalyzer *analyzer, uint16_t prog_number, uint16_t pid)
 {
-    fprintf(stderr, "Add programm %u (%u)\n", prog_number, pid);
     DvbPsiProgInfo *info = NULL;
     size_t j;
     for (j = 0; j < analyzer->pmt_handle_count; ++j) {

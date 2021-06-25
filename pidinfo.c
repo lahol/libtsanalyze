@@ -1,6 +1,5 @@
 #include "pidinfo.h"
 #include "utils.h"
-#include <stdbool.h>
 
 typedef struct _PidInfoListEntry {
     PidInfo info;
@@ -117,3 +116,15 @@ void *pid_info_manager_get_private_data(PidInfoManager *pmgr, uint16_t pid, uint
     PidInfoListEntry *entry = _pid_info_manager_find_pid(pmgr, pid, false);
     return pid_info_get_private_data((PidInfo *)entry, client_id);
 }
+
+void pid_info_manager_enumerate_pid_infos(PidInfoManager *pmgr, PidInfoEnumFunc callback, void *userdata)
+{
+    if (pmgr == NULL || callback == NULL)
+        return;
+    size_t j;
+    for (j = 0; j < pmgr->pid_count; ++j) {
+        if (!callback((PidInfo *)pmgr->pidlist[j], userdata))
+            return;
+    }
+}
+

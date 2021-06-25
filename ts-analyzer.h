@@ -8,15 +8,17 @@
 
 typedef struct _TsAnalyzer TsAnalyzer;
 
+/* Handle a packet.
+ * 1. PID info
+ * 2. Packet data,
+ * 3. Offset (bytes consumed in analyzer),
+ * 4. User data
+*/
+typedef bool (*TsHandlePacketFunc)(PidInfo *, const uint8_t *, const size_t, void *);
+
 typedef struct _TsAnalyzerClass {
     /* callbacks for packets/tables/… */
-    /* Handle a packet.
-     * 1. PID info
-     * 2. Packet data,
-     * 3. Offset (bytes consumed in analyzer),
-     * 4. User data
-    */
-    bool (*handle_packet)(PidInfo *, const uint8_t *, const size_t, void *); /* required */
+    TsHandlePacketFunc handle_packet; /* required */
 } TsAnalyzerClass;
 
 TsAnalyzer *ts_analyzer_new(TsAnalyzerClass *klass, void *userdata);

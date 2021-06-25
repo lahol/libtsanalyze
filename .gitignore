@@ -1,0 +1,3 @@
+*.o
+ts-analyze
+core

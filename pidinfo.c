@@ -64,7 +64,7 @@ PidInfoListEntry *_pid_info_manager_find_pid(PidInfoManager *pmgr, uint16_t pid,
     return create ? _pid_info_manager_add_pid(pmgr, pid) : NULL;
 }
 
-PidInfoManager *pid_info_manager_new()
+PidInfoManager *pid_info_manager_new(void)
 {
     PidInfoManager *pmgr = util_alloc0(sizeof(PidInfoManager));
 

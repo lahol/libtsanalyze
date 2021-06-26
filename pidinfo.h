@@ -38,7 +38,7 @@ typedef bool (*PidInfoEnumFunc)(PidInfo *, void *);
 /** Create a new pid info manager.
  *  @return The newly allocated pid info manager.
  */
-PidInfoManager *pid_info_manager_new();
+PidInfoManager *pid_info_manager_new(void);
 
 /** Free a pid info manager.
  *  @param[in] pmgr The pid info manager to free.

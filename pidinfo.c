@@ -147,3 +147,7 @@ void pid_info_manager_enumerate_pid_infos(PidInfoManager *pmgr, PidInfoEnumFunc 
     }
 }
 
+size_t pid_info_manager_get_pid_count(PidInfoManager *pmgr)
+{
+    return pmgr != NULL ? pmgr->pid_count : 0;
+}

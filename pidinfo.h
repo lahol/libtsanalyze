@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef enum {
     PID_TYPE_PAT = 0,
@@ -103,3 +104,9 @@ void *pid_info_manager_get_private_data(PidInfoManager *pmgr, uint16_t pid, uint
  *  @param[in] userdata The userdata to pass as second argument to callback.
  */
 void pid_info_manager_enumerate_pid_infos(PidInfoManager *pmgr, PidInfoEnumFunc callback, void *userdata);
+
+/** Return the number of managed pids.
+ *  @param[in] pmrg The pid manager.
+ *  @return The number of managed pids.
+ */
+size_t pid_info_manager_get_pid_count(PidInfoManager *pmgr);

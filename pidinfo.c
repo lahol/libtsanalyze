@@ -147,6 +147,16 @@ void pid_info_manager_enumerate_pid_infos(PidInfoManager *pmgr, PidInfoEnumFunc 
     }
 }
 
+void pid_info_manager_clear_private_data(PidInfoManager *pmgr, uint16_t client_id)
+{
+    if (pmgr == NULL || client_id >= PID_INFO_CLIENT_MAX)
+        return;
+    size_t j;
+    for (j = 0; j < pmgr->pid_count; ++j) {
+        pid_info_clear_private_data((PidInfo *)pmgr->pidlist[j], client_id);
+    }
+}
+
 size_t pid_info_manager_get_pid_count(PidInfoManager *pmgr)
 {
     return pmgr != NULL ? pmgr->pid_count : 0;

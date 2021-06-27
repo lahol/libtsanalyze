@@ -99,11 +99,17 @@ void pid_info_manager_set_private_data(PidInfoManager *pmgr, uint16_t pid, uint1
 void *pid_info_manager_get_private_data(PidInfoManager *pmgr, uint16_t pid, uint16_t client_id);
 
 /** Enumerate all pid infos until callback returns false.
- *  @param[in] pmrg The pid manager.
+ *  @param[in] pmgr The pid manager.
  *  @param[in] callback The function to call for each pid.
  *  @param[in] userdata The userdata to pass as second argument to callback.
  */
 void pid_info_manager_enumerate_pid_infos(PidInfoManager *pmgr, PidInfoEnumFunc callback, void *userdata);
+
+/** Clear private data of all pids for a given client.
+ *  @param[in] pmgr The pid manager.
+ *  @param[in] client_id The client id as returend by register_client().
+ */
+void pid_info_manager_clear_private_data(PidInfoManager *pmgr, uint16_t client_id);
 
 /** Return the number of managed pids.
  *  @param[in] pmrg The pid manager.
